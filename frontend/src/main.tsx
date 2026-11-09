@@ -8,7 +8,7 @@ type Suggestion = { suggestion: string; reason: string; mode: string };
 type Preview = { scheduledAt: string; body: string; mode: string; sendsExternally: boolean };
 type Followup = { id: number; leadId: number; body: string; scheduledAt: string; status: string };
 type Status = 'all' | 'new' | 'qualified' | 'contacted' | 'converted' | 'lost';
-const statuses: Status[] = ['new', 'qualified', 'contacted', 'converted', 'lost'];
+const statuses: Exclude<Status, 'all'>[] = ['new', 'qualified', 'contacted', 'converted', 'lost'];
 
 async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, credentials: 'same-origin' });
