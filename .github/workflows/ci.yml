@@ -1,0 +1,60 @@
+name: Test and Build
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r ai-service/requirements.txt pytest httpx
+      - run: pytest -q ai-service/tests
+  dotnet-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet build backend/AspenLead.Api/AspenLead.Api.csproj -c Release
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install && npm run build
+        working-directory: frontend
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Start services
+        env:
+          ADMIN_PASSWORD: ${{ secrets.DEMO_ADMIN_PASSWORD || 'ci-only-synthetic-secret-9b22e6ed' }}
+        run: docker compose up --build -d
+      - name: Wait for API
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://localhost:8080/health >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - name: Test authenticated flows
+        env:
+          ADMIN_PASSWORD: ${{ secrets.DEMO_ADMIN_PASSWORD || 'ci-only-synthetic-secret-9b22e6ed' }}
+        run: python -m unittest discover -s tests -v
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --tail=100
+      - name: Stop services
+        if: always()
+        run: docker compose down
